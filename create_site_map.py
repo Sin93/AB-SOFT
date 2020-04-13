@@ -15,12 +15,17 @@ from multiprocessing import Pool
 В качестве бонуса, чтоб не выглядеть совсем глупым, использовал прокси, чтоб не забанили на сайте, если что.
 """
 
+# Префиксы ссылок, которые будем игнорировать
+EXCLUDE_PREFIX = ['#', 'tel:', 'javascript:', 'mailto:', 'skype:', 'callto:']
+# Форматы, которые необходимо игнорировать
+EXCLUDE_FORMAT = ['.jpeg', '.jpg', '.pdf', '.png']
+
 class MyParser:
     def __init__(self, site):
         self.site = site
         self.pages_to_parse = {site}                # ссылки которые предстоит обойти
-        self.parsed_pages = {''}                    # ссылки которые уже обходили
-        self.site_links = {''}
+        self.parsed_pages = set()                   # ссылки которые уже обходили
+        self.site_links = set()
 
         self.get_all_links(self.site)               # парсинг ссылок с главной страницы
         print('Добыли ссылки с главной страницы')
@@ -64,38 +69,39 @@ class MyParser:
         """
         Функция заказывает html-код у функции get_html собирает ссылки из него ссылки
         и пишет их в список, который затем возвращает.
+
         :param url: адрес страницы, на которой ищем
         :return: список найденных ссылок на странице
         """
         links_from_url = []
-        soup = self.get_html(url)                                       # Забираем код страницы url
+        soup = self.get_html(url)                           # Забираем код страницы url
         try:
-            find_links = soup.findAll('a')                              # ищем всё с тегом 'a'
+            find_links = soup.findAll('a')                  # ищем всё с тегом 'a'
         except:
-            return  # иногда возникает исключение на главной странице не придумал ничего лучше, чтоб обойти его
-        for link in find_links:                                         # перебираем все найденные блоки
-            link = link.get('href')                                     # берём из них ссылки href
+            return                          # иногда возникает исключение не придумал ничего лучше, чтоб обойти его
+        for link in find_links:                             # перебираем все найденные блоки
+            link = link.get('href')                         # берём из них ссылки href
             try:
-                if link[:len(url)] == url:                              # если ссылка абсолютная:
-                    if link == url or link == f'{url}/':                # если найденная ссылка = url в котором искали
-                        continue                                        # не добавлять такую ссылку
-                    elif link not in self.pages_to_parse:               # если ссылки нет в списке на парсинг
-                        self.pages_to_parse.add(link)                   # добавить ссылку в список на парсинг
-                        links_from_url.append(link)
-                        continue
-                if link[0] == '/':                                      # если ссылка относительная и без / в начале
-                    if f'{url}{link}' not in self.pages_to_parse:       # и её нет в списке на парсинг
-                        self.pages_to_parse.add(f'{self.site}{link}')   # добавить её в список преобразовав к url
-                        links_from_url.append(f'{self.site}{link}')
-                        continue
-                else:                                                   # если в начале есть /
-                    if link[:4] == 'http' or link[:4] == 'tel:' \
-                            or link[:4] == 'java':                      # исключим ссылки на другие сайты и прочий мусор
-                        continue
-                    if f'{url}/{link}' not in self.pages_to_parse:      # и такой ссылки нет в списке
-                        self.pages_to_parse.add(f'{self.site}/{link}')  # то добавить в список преобразовав к url
-                        links_from_url.append(f'{self.site}/{link}')
-                        continue
+                if all(not link.startswith(prefix) for prefix in EXCLUDE_PREFIX)\
+                        and all(form not in link for form in EXCLUDE_FORMAT):       # отсеять откровенно лишние ссылки
+                    if link == url or link == f'{url}/':    # если найденная ссылка ведёт на ту же страницу
+                        continue                            # игнорировать её
+                    if 'http' in link and not link.startswith(self.site):   # Если ссылка на другой сайт
+                        continue                                            # Игнорировать её
+
+                    if self.site in link:                               # если ссылка абсолютная
+                        if link not in self.pages_to_parse:             # и её нет в массиве на парсинг
+                            self.pages_to_parse.add(link)               # добавить в массиве на парсинг
+                            links_from_url.append(link)
+                    else:                                       # если ссылка относительная
+                        if link.startswith('/') and link[:2] != '//':   # и в начале ссылки есть /, но не //
+                            link = f'{self.site}{link}'                 # преобразовать в url
+                            self.pages_to_parse.add(link)               # добавить в массиве на парсинг
+                            links_from_url.append(link)
+                        elif link[:2] != '//':                          # или если начинается не с // (внешний сайт)
+                            link = f'{self.site}/{link}'                # преобразовать в url
+                            self.pages_to_parse.add(link)               # добавить в массиве на парсинг
+                            links_from_url.append(link)
             except:
                 continue
         return links_from_url
@@ -120,4 +126,4 @@ class MyParser:
 
 
 if __name__ == '__main__':
-    parse = MyParser('https://asus-store.ru')
+    parse = MyParser('https://myrusakov.ru')              # url главной страницы
