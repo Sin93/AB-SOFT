@@ -126,4 +126,4 @@ class MyParser:
 
 
 if __name__ == '__main__':
-    parse = MyParser('https://myrusakov.ru')              # url главной страницы
+    parse = MyParser('https://yandex.ru')                           # url главной страницы
