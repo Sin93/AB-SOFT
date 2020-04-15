@@ -28,7 +28,6 @@ class MyParser:
         self.site_links = set()
 
         self.get_all_links(self.site)               # парсинг ссылок с главной страницы
-        print('Добыли ссылки с главной страницы')
         self.multi_parse()                          # Запуск персинга сайта
         for link in enumerate(self.site_links):
             print(link)
@@ -60,10 +59,13 @@ class MyParser:
             return
         else:
             resp = http.request('GET', url, proxy[0], proxy[1])     # запрашиваем страницу, получаем объект HTTPResponse
-            page = resp.data.decode('utf-8')
-            soup = BeautifulSoup(page, "html.parser")               # приводим response в читаемый вид
-            self.parsed_pages.add(url)                              # Регистрируем, что эту страницу обошли
-            return soup                                             # Возвращаем html код страницы
+            try:
+                page = resp.data.decode()
+                soup = BeautifulSoup(page, "html.parser")           # приводим response в читаемый вид
+                self.parsed_pages.add(url)                          # Регистрируем, что эту страницу обошли
+                return soup                                         # Возвращаем html код страницы
+            except UnicodeDecodeError:
+                return ''
 
     def get_all_links(self, url):
         """
@@ -126,4 +128,4 @@ class MyParser:
 
 
 if __name__ == '__main__':
-    parse = MyParser('https://yandex.ru')                           # url главной страницы
+    parse = MyParser('https://ru.wikipedia.org/')                   # url главной страницы
