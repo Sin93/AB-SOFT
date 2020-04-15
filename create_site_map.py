@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
-import urllib3 as u
+from urllib3 import PoolManager
+from urllib.parse import urlparse
 from random import choice
 from multiprocessing import Pool
 # from pymongo import MongoClient
@@ -22,12 +23,14 @@ EXCLUDE_FORMAT = ['.jpeg', '.jpg', '.pdf', '.png']
 
 class MyParser:
     def __init__(self, site):
-        self.site = site
+        self.site = site                            # адрес стартовой страницы
+        self.url_site = urlparse(self.site)         # разбор url стартовой страницы для получения домена
+        self.domain = f'{self.url_site.scheme}://{self.url_site.netloc}'    # домен сайта
         self.pages_to_parse = {site}                # ссылки которые предстоит обойти
         self.parsed_pages = set()                   # ссылки которые уже обходили
         self.site_links = set()
 
-        self.get_all_links(self.site)               # парсинг ссылок с главной страницы
+        self.get_all_links(self.site)               # парсинг ссылок со стартовой страницы
         self.multi_parse()                          # Запуск персинга сайта
         for link in enumerate(self.site_links):
             print(link)
@@ -53,7 +56,7 @@ class MyParser:
         :param url:
         :return: html-код
         """
-        http = u.PoolManager()
+        http = PoolManager()
         proxy = self.get_proxy()                # берётся один случайный прокси
         if url in self.parsed_pages:            # Если страницу с таким url уже парсили, то не повторяем
             return
@@ -88,20 +91,20 @@ class MyParser:
                         and all(form not in link for form in EXCLUDE_FORMAT):       # отсеять откровенно лишние ссылки
                     if link == url or link == f'{url}/':    # если найденная ссылка ведёт на ту же страницу
                         continue                            # игнорировать её
-                    if 'http' in link and not link.startswith(self.site):   # Если ссылка на другой сайт
-                        continue                                            # Игнорировать её
+                    if 'http' in link and not link.startswith(self.domain):     # Если ссылка на другой сайт
+                        continue                                                # Игнорировать её
 
-                    if self.site in link:                               # если ссылка абсолютная
+                    if self.domain in link:                             # если ссылка абсолютная
                         if link not in self.pages_to_parse:             # и её нет в массиве на парсинг
                             self.pages_to_parse.add(link)               # добавить в массиве на парсинг
                             links_from_url.append(link)
-                    else:                                       # если ссылка относительная
+                    else:                                               # если ссылка относительная
                         if link.startswith('/') and link[:2] != '//':   # и в начале ссылки есть /, но не //
-                            link = f'{self.site}{link}'                 # преобразовать в url
+                            link = f'{self.domain}{link}'               # преобразовать в url
                             self.pages_to_parse.add(link)               # добавить в массиве на парсинг
                             links_from_url.append(link)
                         elif link[:2] != '//':                          # или если начинается не с // (внешний сайт)
-                            link = f'{self.site}/{link}'                # преобразовать в url
+                            link = f'{self.domain}/{link}'              # преобразовать в url
                             self.pages_to_parse.add(link)               # добавить в массиве на парсинг
                             links_from_url.append(link)
             except:
@@ -128,4 +131,4 @@ class MyParser:
 
 
 if __name__ == '__main__':
-    parse = MyParser('https://ru.wikipedia.org/')                   # url главной страницы
+    parse = MyParser('https://yandex.ru')                           # url стартовой страницы
