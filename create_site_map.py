@@ -204,4 +204,4 @@ class MyParser:
 
 if __name__ == '__main__':
     # url стартовой страницы
-    PARSE = MyParser('https://vk.com')
+    PARSE = MyParser('https://сайтыобразованию.рф')
