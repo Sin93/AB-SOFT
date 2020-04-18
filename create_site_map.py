@@ -4,7 +4,6 @@ from multiprocessing import Pool
 from bs4 import BeautifulSoup
 from urllib3 import PoolManager
 import urllib3.exceptions
-import re
 
 
 """
@@ -24,7 +23,7 @@ import re
 # Префиксы ссылок, которые будем игнорировать
 EXCLUDE_PREFIX = ['#', 'tel:', 'javascript:', 'mailto:', 'skype:',
                   'callto:', 'file:', 'chrome:', 'sms:', 'data:',
-                  'itms:', 'mid:', 'ftp:', 'maphttps:']
+                  'itms:', 'mid:', 'ftp:', 'maphttps:', 'Hulpe:']
 # Форматы, которые необходимо игнорировать
 EXCLUDE_FORMAT = ['.jpeg', '.jpg', '.pdf', '.png']
 # Для перехвата ошибки из-за большого количества перенаправлений
@@ -41,14 +40,18 @@ class MyParser:
         # если домен сайта не в ASCII кодировке
         if not self.url_site.netloc.isascii():
             # взять домен и перевести его в ASCII
-            site_netloc = str(self.url_site.netloc.encode('idna'))[2:-1]
+            self.site_netloc = str(self.url_site.netloc.encode('idna'))[2:-1]
             # сформировать новую ссылку на домен с протоколом
-            self.domain = f'{self.url_site.scheme}://{site_netloc}'
+            self.domain = f'{self.url_site.scheme}://{self.site_netloc}'
             # сформировать новую ссылку на сайт
-            self.site = f'{self.url_site.scheme}://{site_netloc}{self.url_site.path}'
+            self.site = f'{self.url_site.scheme}://{self.site_netloc}{self.url_site.path}'
         else:
             # Если кодировка верная - просто сделать ссылку на домен с протоколом
             self.domain = f'{self.url_site.scheme}://{self.url_site.netloc}'
+            # для дольнейших проверок сделать домен без учета http:// и www. и т.п.
+            self.site_netloc = self.url_site.netloc
+            if self.site_netloc.startswith('www.'):
+                self.site_netloc = self.url_site.netloc[4:]
 
         # ссылки которые предстоит обойти
         self.pages_to_parse = {site}
@@ -145,15 +148,17 @@ class MyParser:
                 if all(not link.startswith(prefix) for prefix in EXCLUDE_PREFIX) and all(
                         form not in link for form in EXCLUDE_FORMAT):
 
-                    if link in url or link in f'{url}/':
+                    if link is url or link is f'{url}/':
                         # если найденная ссылка ведёт на ту же страницу, то игнорировать её
                         continue
 
-                    if link.startswith('http') and not link.startswith(self.domain):
+                    elif link.startswith('http') and \
+                            self.site_netloc not in link[:len(self.domain) + 15]:
                         # Если ссылка на другой сайт, то игнорировать её
                         continue
 
-                    if link.startswith(self.domain):
+                    elif link.startswith('http') and \
+                            self.site_netloc in link[:len(self.domain) + 15]:
                         # если ссылка абсолютная
                         if link not in self.pages_to_parse:
                             # добавить в массиве на парсинг, если данной ссылки там нет
@@ -162,19 +167,29 @@ class MyParser:
                     else:
                         # если ссылка относительная
                         if '://' in link:
-                            # Игнорировать ссылки в которых есть '://'
+                            # Игнорировать относительные ссылки, в которых есть '://'
                             continue
 
-                        if link.startswith('/') and link[:2] != '//':
-                            # если в начале ссылки есть /, но не //, то преобразовать в url
+                        if link.startswith('//') and self.site_netloc in link[:len(self.domain)]:
+                            # относительная ссылка на сайт с subdomain
+                            link = f'{self.url_site.scheme}:{link}'
+
+                            # добавить в массиве на парсинг
+                            self.pages_to_parse.add(link)
+                            links_from_url.append(link)
+
+                        elif link.startswith('/') and link is not '/' and \
+                                not link.startswith('//'):
+                            # если в начале ссылки есть /, но она не состоит только из него
+                            # добавить домен в начало
                             link = f'{self.domain}{link}'
 
                             # добавить в массиве на парсинг
                             self.pages_to_parse.add(link)
                             links_from_url.append(link)
 
-                        elif not link.startswith('//'):
-                            # или если начинается не с // (внешний сайт), то преобразовать в url
+                        elif not link.startswith('/') and not link.startswith('//'):
+                            # остальные относительные ссылки - преобразовать в url
                             link = f'{self.domain}/{link}'
 
                             # добавить в массиве на парсинг
@@ -205,4 +220,4 @@ class MyParser:
 
 if __name__ == '__main__':
     # url стартовой страницы
-    PARSE = MyParser('http://crawler-test.com')
+    PARSE = MyParser('https://vk.com')
