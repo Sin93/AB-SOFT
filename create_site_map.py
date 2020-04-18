@@ -4,6 +4,7 @@ from multiprocessing import Pool
 from bs4 import BeautifulSoup
 from urllib3 import PoolManager
 import urllib3.exceptions
+import re
 
 
 """
@@ -148,11 +149,11 @@ class MyParser:
                         # если найденная ссылка ведёт на ту же страницу, то игнорировать её
                         continue
 
-                    if 'http' in link and not link.startswith(self.domain):
+                    if link.startswith('http') and not link.startswith(self.domain):
                         # Если ссылка на другой сайт, то игнорировать её
                         continue
 
-                    if self.domain in link:
+                    if link.startswith(self.domain):
                         # если ссылка абсолютная
                         if link not in self.pages_to_parse:
                             # добавить в массиве на парсинг, если данной ссылки там нет
@@ -172,7 +173,7 @@ class MyParser:
                             self.pages_to_parse.add(link)
                             links_from_url.append(link)
 
-                        elif link[:2] != '//' and r'':
+                        elif not link.startswith('//'):
                             # или если начинается не с // (внешний сайт), то преобразовать в url
                             link = f'{self.domain}/{link}'
 
@@ -204,4 +205,4 @@ class MyParser:
 
 if __name__ == '__main__':
     # url стартовой страницы
-    PARSE = MyParser('https://сайтыобразованию.рф')
+    PARSE = MyParser('http://crawler-test.com')
